@@ -1,0 +1,19 @@
+{
+  "name": "chat-forwissen",
+  "version": "1.0.0",
+  "description": "[![Support](https://www.totaljs.com/img/button-support.png)](https://www.totaljs.com/support/)",
+  "main": "debug.js",
+  "dependencies": {
+    "dotenv": "^4.0.0",
+    "jsonwebtoken": "^8.0.1",
+    "mysql": "^2.14.1",
+    "socket.io": "^2.0.3",
+    "total.js": "^2.8.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Joseth Guerrero",
+  "license": "ISC"
+}
