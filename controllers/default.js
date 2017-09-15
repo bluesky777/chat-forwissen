@@ -1,5 +1,5 @@
 exports.install = function() {
-	F.route('/', get_users);
+	//F.route('/', func);
 	// or
 	// F.route('/');
 };
@@ -83,11 +83,21 @@ F.on("load", function() {
 			socket.datos.user_data 		= data.usuario;
 			socket.datos.logged 		= true;
 
-			if (socket.datos.user_data.inscripciones > 0) {
+
+			if (socket.datos.user_data.inscripciones.length > 0) {
 				socket.datos.categsel 	= socket.datos.user_data.inscripciones[0].categoria_id;
 			}
 			socket.broadcast.emit('logueado:alguien', {clt: socket.datos} );
-			socket.emit('logueado:yo', { info_evento: info_evento } );
+			socket.emit('logueado:yo', { yo: socket.datos, info_evento: info_evento } );
+		});
+
+		socket.on('guardar:nombre_punto', function(data){
+			for (var i = 0; i < all_clts.length; i++) {
+				if (all_clts[i].resourceId == data.resourceId){
+					all_clts[i].nombre_punto = data.nombre;
+				}
+			}
+			self.io.sockets.emit('nombre_punto_cambiado',{ resourceId: data.resourceId, nombre: data.nombre });
 		});
 
 		socket.on('get_clts', function(data){
@@ -115,12 +125,126 @@ F.on("load", function() {
 
 		});
 
+		socket.on('change_a_categ_selected', function(data){
+			socket.broadcast.to(data.resourceId).emit('change_the_categ_selected', { categsel: data.categsel, resourceId: data.resourceId }); 
+			socket.broadcast.emit('change_a_categ_selected', { categsel: data.categsel, resourceId: data.resourceId });
+		});
+
+		socket.on('warn_my_categ_selected', function(data){
+			socket.broadcast.emit('a_categ_selected_change', { categsel: data.categsel, resourceId: data.resourceId });
+		});
+
+		socket.on('empezar_examen', function(data){
+			info_evento.examen_iniciado 	= true;
+			info_evento.preg_actual 		= 1;
+			socket.broadcast.emit('empezar_examen');
+		});
+
+		socket.on('empezar_examen_cliente', function(data){
+			socket.broadcast.to(data.resourceId).emit('empezar_examen'); 
+		});
+
+		socket.on('liberar_hasta_pregunta', function(data){
+			info_evento.free_till_question 	= data.numero;
+			info_evento.preg_actual 		= data.numero;
+			socket.broadcast.emit('set_free_till_question', { free_till_question: data.numero }); 
+		});
+
 
 
 		socket.on('message',function(data){
 			console.log(data);
 			socket.broadcast.emit('receive',data.message);
 
+		});
+
+		socket.on('desloguear',function(data){
+			if (socket.datos) {
+				nombre_punto = socket.datos.nombre_punto;
+			}
+			datos 					= {};
+			datos.logged 			= false;
+			datos.registered 		= false;
+			datos.resourceId		= socket.id;
+			datos.categsel			= 0;
+			datos.respondidas		= 0;
+			datos.correctas			= 0;
+			datos.tiempo			= 0;
+			datos.nombre_punto		= nombre_punto;
+			datos.user_data 		= {};
+			socket.datos 			= datos;
+
+			socket.broadcast.emit('deslogueado', {client: socket.datos} );
+
+
+		});
+
+		socket.on('got_qr',function(data){
+			
+			get_qr(data.qr.codigo).then(function(resu) {
+				qr = resu;
+				
+				if (qr) {
+					switch(qr.comando){
+						case 'let_in':
+							qr.reconocido 	= true;
+							qr.parametro 	= JSON.parse(qr.parametro);
+							if (qr.parametro != null) {
+
+								for (var i = 0; i < all_clts.length; i++) {
+									if (all_clts[i].resourceId == qr.parametro.resourceId || all_clts[i].resourceId == parseInt(qr.parametro.resourceId) ) {
+										indice = i; // si no hago esto, i llega a ser el total porque es llamado después de la promesa (me robó 3 horas de mi precioso tiempo)
+										if (data.usuario_id) {
+											self.io.sockets.socket(all_clts[i].resourceId).emit('got_your_qr', {codigo: qr.codigo, usuario_id: user.id, from_token: data.from_token} );
+										}else{
+											get_users(socket.datos.user_data.evento_selected_id).then(function(usuarios) {
+												socket.broadcast.to(all_clts[indice].resourceId).emit('got_your_qr', {codigo: qr.codigo, seleccionar: true, usuarios: usuarios, from_token: data.from_token } );
+											})
+										
+										}
+
+									}
+								}
+								delete_qr(data.qr.codigo).then(function(result) {});
+							}else{
+								socket.emit('qr_no_param');
+							}
+
+							break;
+
+						default:
+							// code...
+							break;
+					}
+				}
+
+
+			});
+
+		});
+
+
+		socket.on('correspondencia', function (data) {
+			mensaje 	= { from: socket.datos, texto: data.mensaje };
+			self.io.sockets.emit('correspondencia', { mensaje: mensaje });
+		});
+
+		socket.on('cerrar_sesion', function (data) {
+			client_found = {};
+			if (data.resourceId) {
+				for (var i = 0; i < all_clts.length; i++) {
+					if (all_clts[i].resourceId == data.resourceId) {
+						client_found = all_clts[i];
+					}
+				}
+			}else{
+				client_found = socket.datos;
+			}
+
+			client_found.registered = false;
+			client_found.user_data 	= {};
+
+			self.io.sockets.emit('sesion_closed', { clt: client_found });
 		});
 
 
@@ -148,15 +272,9 @@ F.on("load", function() {
 function set_param_to_codigo_qr(qr, param) {
 	var self = this;
 	return new Promise(function(resolve, reject) {
-
-
-		var mysql      = require('mysql');
-		var connection = mysql.createConnection({
-		  host     : 'localhost',
-		  user     : 'root',
-		  password : '',
-		  database : 'wissen_system_db'
-		});
+		datos 			= get_datos_conn();
+		var mysql 		= require('mysql');
+		var connection 	= mysql.createConnection(datos);
 
 		connection.connect(function(err) {
 			if (err) {
@@ -179,19 +297,25 @@ function set_param_to_codigo_qr(qr, param) {
 }
 
 
+function get_datos_conn() {
+	
+	var datos = {
+		host     : process.env.DB_HOST,
+		user     : process.env.DB_USERNAME,
+		password : process.env.DB_PASSWORD,
+		database : process.env.DB_DATABASE
+	};
+	return datos;
+}
 
 
 function get_users(evento_id) {
 	var self = this;
 	return new Promise(function(resolve, reject) {
+		datos = get_datos_conn();
 
-		var mysql      = require('mysql');
-		var connection = mysql.createConnection({
-		  host     : 'localhost',
-		  user     : 'root',
-		  password : '',
-		  database : 'wissen_system_db'
-		});
+		var mysql 		= require('mysql');
+		var connection 	= mysql.createConnection(datos);
 
 		connection.connect(function(err) {
 			if (err) { console.error('error connecting: ' + err.stack); return reject(err); }
@@ -211,7 +335,11 @@ function get_users(evento_id) {
 						where u.deleted_at is null`;
 
 		connection.query(consulta, [default_female, default_male, evento_id], function (error, results, fields) {
-			if (error) throw error;
+			if (error){
+				console.log('Error al consultar usuarios');
+				reject('Error al consultar usuarios');
+				throw error;
+			} 
 			resolve(results);
 		});
 		connection.end();
@@ -223,14 +351,9 @@ function get_users(evento_id) {
 function get_user(usuario_id) {
 	var self = this;
 	return new Promise(function(resolve, reject) {
-
-		var mysql      = require('mysql');
-		var connection = mysql.createConnection({
-		  host     : 'localhost',
-		  user     : 'root',
-		  password : '',
-		  database : 'wissen_system_db'
-		});
+		datos 			= get_datos_conn();
+		var mysql 		= require('mysql');
+		var connection 	= mysql.createConnection(datos);
 
 		connection.connect(function(err) {
 			if (err) { console.error('error connecting: ' + err.stack); return reject(err); }
@@ -240,6 +363,52 @@ function get_user(usuario_id) {
 		connection.query(consulta, [usuario_id], function (error, results, fields) {
 			if (error) throw error;
 			resolve(results[0]);
+		});
+		connection.end();
+	});
+
+}
+
+
+function get_qr(qr_codigo) {
+	var self = this;
+	return new Promise(function(resolve, reject) {
+		datos 			= get_datos_conn();
+		var mysql 		= require('mysql');
+		var connection 	= mysql.createConnection(datos);
+
+		connection.connect(function(err) {
+			if (err) { console.error('error connecting: ' + err.stack); return reject(err); }
+		});
+		consulta = `SELECT * FROM qrcodes WHERE codigo=?`;
+
+		connection.query(consulta, [qr_codigo], function (error, results, fields) {
+			if (error) throw error;
+			resolve(results[0]);
+		});
+		connection.end();
+	});
+
+}
+function delete_qr(qr_codigo) {
+	var self = this;
+	return new Promise(function(resolve, reject) {
+		datos 			= get_datos_conn();
+		var mysql 		= require('mysql');
+		var connection 	= mysql.createConnection(datos);
+
+		connection.connect(function(err) {
+			if (err) { console.error('error connecting: ' + err.stack); return reject(err); }
+		});
+		consulta = `DELETE FROM qrcodes WHERE codigo=?`;
+
+		connection.query(consulta, [qr_codigo], function (error, results) {
+			if (error){
+				console.log(error);
+				reject(error);
+				throw error;	
+			} 
+			resolve(results);
 		});
 		connection.end();
 	});
