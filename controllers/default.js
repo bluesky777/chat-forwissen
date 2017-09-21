@@ -341,8 +341,10 @@ F.on("load", function() {
 
 		socket.on('sc_show_barras', function (data) {
 			for (var i = 0; i < all_clts.length; i++) {
-				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-					socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_barras');
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_barras');
+					}
 				}
 			}
 		});
@@ -369,8 +371,10 @@ F.on("load", function() {
 
 		socket.on('sc_reveal_answer', function (data) {
 			for (var i = 0; i < all_clts.length; i++) {
-				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-					socket.broadcast.to(all_clts[i].resourceId).emit('sc_reveal_answer');
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('sc_reveal_answer');
+					}
 				}
 			}
 		});
@@ -387,16 +391,20 @@ F.on("load", function() {
 
 		socket.on('sc_show_puntaje_particip', function (data) {
 			for (var i = 0; i < all_clts.length; i++) {
-				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-					socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_puntaje_particip', {cliente: data.cliente});
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_puntaje_particip', {cliente: data.cliente});
+					}
 				}
 			}
 		});
 
 		socket.on('sc_show_puntaje_examen', function (data) {
 			for (var i = 0; i < all_clts.length; i++) {
-				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-					socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_puntaje_examen', {examen: data.examen});
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_puntaje_examen', {examen: data.examen});
+					}
 				}
 			}
 		});
@@ -409,8 +417,10 @@ F.on("load", function() {
 		socket.on('mostrar_solo_fondo', function (data) {
 			info_evento.img_name 		= data.img_name;
 			for (var i = 0; i < all_clts.length; i++) {
-				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-					socket.broadcast.to(all_clts[i].resourceId).emit('a_mostrar_solo_fondo', { img_name: data.img_name });
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('a_mostrar_solo_fondo', { img_name: data.img_name });
+					}
 				}
 			}
 		});
@@ -418,8 +428,10 @@ F.on("load", function() {
 		socket.on('cambiar_teleprompter', function (data) {
 			info_evento.msg_teleprompter 		= data.msg_teleprompter;
 			for (var i = 0; i < all_clts.length; i++) {
-				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-					socket.broadcast.to(all_clts[i].resourceId).emit('a_cambiar_teleprompter', { msg_teleprompter: data.msg_teleprompter });
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('a_cambiar_teleprompter', { msg_teleprompter: data.msg_teleprompter });
+					}
 				}
 			}
 		});
@@ -441,8 +453,10 @@ F.on("load", function() {
 				}
 			}
 			for (var i = 0; i < all_clts.length; i++) {
-				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-					socket.broadcast.to(all_clts[i].resourceId).emit('sc_answered', { resourceId: socket.id, cliente: participante });
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('sc_answered', { resourceId: socket.id, cliente: participante });
+					}
 				}
 			}
 		});
