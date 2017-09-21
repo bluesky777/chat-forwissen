@@ -15,15 +15,19 @@ F.on("load", function() {
 
 	var count_clients 	= 0;
 	var all_clts 		= [];
+	var categorias_king = [];
 	var info_evento 	= {
-		examen_iniciado: 		false, 
-		preg_actual: 			0,
-		free_till_question: 	-1
-	};
+			examen_iniciado: 		false, 
+			preg_actual: 			0,
+			free_till_question: 	-1
+		};
+
+
 
 
 	self.io.on('connection',function(socket){
 		console.log('New connection: '+socket.id);
+
 
 		socket.join('principal');
 
@@ -80,15 +84,42 @@ F.on("load", function() {
 			if (data.usuario.eventos) {
 				delete data.usuario.eventos;
 			}
-			socket.datos.user_data 		= data.usuario;
-			socket.datos.logged 		= true;
+			datos 					= {};
+			datos.logged 			= true;
+			datos.registered 		= data.registered?true:false;
+			datos.resourceId		= socket.id;
+			datos.categsel			= 0;
+			datos.respondidas		= 0;
+			datos.correctas			= 0;
+			datos.tiempo			= 0;
+			datos.nombre_punto		= data.nombre_punto?data.nombre_punto:socket.datos.nombre_punto;
+			datos.user_data 		= data.usuario;
+			socket.datos 			= datos;
 
 
 			if (socket.datos.user_data.inscripciones.length > 0) {
 				socket.datos.categsel 	= socket.datos.user_data.inscripciones[0].categoria_id;
 			}
+
+			for (var i = 0; i < all_clts.length; i++) {
+				if (all_clts[i].resourceId == socket.id) {
+					all_clts.splice(i, 1, socket.datos);
+				}
+			}
+
 			socket.broadcast.emit('logueado:alguien', {clt: socket.datos} );
-			socket.emit('logueado:yo', { yo: socket.datos, info_evento: info_evento } );
+
+			if (categorias_king.length > 0) {
+				socket.broadcast.emit('logueado:alguien', {clt: socket.datos, categorias_king: categorias_king} );
+				socket.emit('logueado:yo', { yo: socket.datos, info_evento: info_evento, categorias_king: categorias_king } );
+			}else{
+				categorias_king_con_traducciones(datos.user_data.evento_selected_id).then(function(result){
+					categorias_king = result;
+					socket.broadcast.emit('logueado:alguien', {clt: socket.datos, categorias_king: categorias_king} );
+					socket.emit('logueado:yo', { yo: socket.datos, info_evento: info_evento, categorias_king: categorias_king } );
+				});
+			}
+			
 		});
 
 		socket.on('guardar:nombre_punto', function(data){
@@ -126,12 +157,34 @@ F.on("load", function() {
 		});
 
 		socket.on('change_a_categ_selected', function(data){
-			socket.broadcast.to(data.resourceId).emit('change_the_categ_selected', { categsel: data.categsel, resourceId: data.resourceId }); 
-			socket.broadcast.emit('change_a_categ_selected', { categsel: data.categsel, resourceId: data.resourceId });
+
+			for (var i = 0; i < all_clts.length; i++) {
+				if (all_clts[i].resourceId == socket.id) {
+					all_clts[i].categsel 			= data.categsel;
+					all_clts[i].categsel_id 		= data.categsel;
+					all_clts[i].categsel_nombre 	= data.categsel_nombre;
+					all_clts[i].categsel_abrev 		= data.categsel_abrev;
+					all_clts.splice(i, 1, all_clts[i]);
+
+					socket.broadcast.to(data.resourceId).emit('change_the_categ_selected', 	{ categsel: data.categsel, categsel_nombre: data.categsel_nombre, categsel_abrev: data.categsel_abrev, resourceId: socket.id}); 
+					socket.broadcast.emit('change_a_categ_selected', 						{ categsel: data.categsel, categsel_nombre: data.categsel_nombre, categsel_abrev: data.categsel_abrev, resourceId: socket.id });
+		
+				}
+			}
 		});
 
 		socket.on('warn_my_categ_selected', function(data){
-			socket.broadcast.emit('a_categ_selected_change', { categsel: data.categsel, resourceId: data.resourceId });
+			socket.datos.categsel 				= data.categsel;
+			socket.datos.categsel_id 			= data.categsel;
+			socket.datos.categsel_nombre 		= data.categsel_nombre;
+			socket.datos.categsel_abrev 		= data.categsel_abrev;
+
+			for (var i = 0; i < all_clts.length; i++) {
+				if (all_clts[i].resourceId == socket.id) {
+					all_clts.splice(i, 1, socket.datos);
+				}
+			}
+			socket.broadcast.emit('a_categ_selected_change', { categsel: data.categsel, categsel_nombre: data.categsel_nombre, categsel_abrev: data.categsel_abrev, resourceId: socket.id });
 		});
 
 		socket.on('empezar_examen', function(data){
@@ -159,20 +212,29 @@ F.on("load", function() {
 		});
 
 		socket.on('desloguear',function(data){
-			if (socket.datos) {
-				nombre_punto = socket.datos.nombre_punto;
-			}
 			datos 					= {};
 			datos.logged 			= false;
-			datos.registered 		= false;
 			datos.resourceId		= socket.id;
 			datos.categsel			= 0;
 			datos.respondidas		= 0;
 			datos.correctas			= 0;
 			datos.tiempo			= 0;
-			datos.nombre_punto		= nombre_punto;
 			datos.user_data 		= {};
+			
+			if (data.registered) {
+				datos.registered = data.registered;
+			}
+			if (data.nombre_punto) {
+				datos.nombre_punto = data.nombre_punto;
+			}
+
 			socket.datos 			= datos;
+
+			for (var i = 0; i < all_clts.length; i++) {
+				if (all_clts[i].resourceId == socket.id) {
+					all_clts[i] = datos;
+				}
+			}
 
 			socket.broadcast.emit('deslogueado', {client: socket.datos} );
 
@@ -195,7 +257,7 @@ F.on("load", function() {
 									if (all_clts[i].resourceId == qr.parametro.resourceId || all_clts[i].resourceId == parseInt(qr.parametro.resourceId) ) {
 										indice = i; // si no hago esto, i llega a ser el total porque es llamado después de la promesa (me robó 3 horas de mi precioso tiempo)
 										if (data.usuario_id) {
-											self.io.sockets.socket(all_clts[i].resourceId).emit('got_your_qr', {codigo: qr.codigo, usuario_id: user.id, from_token: data.from_token} );
+											socket.broadcast.to(all_clts[i].resourceId).emit('got_your_qr', {codigo: qr.codigo, usuario_id: user.id, from_token: data.from_token} );
 										}else{
 											get_users(socket.datos.user_data.evento_selected_id).then(function(usuarios) {
 												socket.broadcast.to(all_clts[indice].resourceId).emit('got_your_qr', {codigo: qr.codigo, seleccionar: true, usuarios: usuarios, from_token: data.from_token } );
@@ -223,28 +285,33 @@ F.on("load", function() {
 
 		});
 
-
 		socket.on('correspondencia', function (data) {
 			mensaje 	= { from: socket.datos, texto: data.mensaje };
 			self.io.sockets.emit('correspondencia', { mensaje: mensaje });
 		});
 
-		socket.on('cerrar_sesion', function (data) {
-			client_found = {};
-			if (data.resourceId) {
-				for (var i = 0; i < all_clts.length; i++) {
-					if (all_clts[i].resourceId == data.resourceId) {
-						client_found = all_clts[i];
-					}
+		socket.on('cerrar_sesion_a', function (data) {
+			socket.broadcast.to(data.resourceId).emit('cerrar:tu_sesion');
+		});
+
+		socket.on('registrar_a', function (data) {
+			for(var i=0; i < all_clts.length; i++){
+				if (all_clts[i].resourceId == data.resourceId) {
+					all_clts[i].registered = true;
+					all_clts.splice(i, 1, all_clts[i]);
 				}
-			}else{
-				client_found = socket.datos;
 			}
+			socket.broadcast.to(data.resourceId).emit('me_registraron');
+		});
 
-			client_found.registered = false;
-			client_found.user_data 	= {};
-
-			self.io.sockets.emit('sesion_closed', { clt: client_found });
+		socket.on('desregistrar_a', function (data) {
+			for(var i=0; i < all_clts.length; i++){
+				if (all_clts[i].resourceId == data.resourceId) {
+					all_clts[i].registered = false;
+					all_clts.splice(i, 1, all_clts[i]);
+				}
+			}
+			socket.broadcast.to(data.resourceId).emit('me_desregistraron');
 		});
 
 
@@ -260,6 +327,155 @@ F.on("load", function() {
 				resourceId: socket.datos.resourceId
 			});
 		});
+
+
+
+
+
+
+
+
+		socket.on('sc_show_participantes', function (data) {
+			socket.broadcast.emit('sc_show_participantes');
+		});
+
+		socket.on('sc_show_barras', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+					socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_barras');
+				}
+			}
+		});
+
+		socket.on('sc_show_question', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_question', {pregunta: data.pregunta, no_question: data.no_question } );
+					}
+				}
+			}
+		});
+
+		socket.on('sc_reveal_answer', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+					socket.broadcast.to(all_clts[i].resourceId).emit('sc_reveal_answer');
+				}
+			}
+		});
+
+		socket.on('sc_show_logo_entidad_partici', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+					socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_logo_entidad_partici', {valor: data.valor});
+				}
+			}
+		});
+
+		socket.on('sc_show_puntaje_particip', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+					socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_puntaje_particip', {cliente: data.cliente});
+				}
+			}
+		});
+
+		socket.on('sc_show_puntaje_examen', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+					socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_puntaje_examen', {examen: data.examen});
+				}
+			}
+		});
+
+		socket.on('establecer_fondo', function (data) {
+			info_evento.img_name 		= data.img_name;
+			socket.broadcast.emit('a_establecer_fondo', { img_name: data.img_name });
+		});
+
+		socket.on('mostrar_solo_fondo', function (data) {
+			info_evento.img_name 		= data.img_name;
+			for (var i = 0; i < all_clts.length; i++) {
+				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+					socket.broadcast.to(all_clts[i].resourceId).emit('a_mostrar_solo_fondo', { img_name: data.img_name });
+				}
+			}
+		});
+
+		socket.on('cambiar_teleprompter', function (data) {
+			info_evento.msg_teleprompter 		= data.msg_teleprompter;
+			for (var i = 0; i < all_clts.length; i++) {
+				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+					socket.broadcast.to(all_clts[i].resourceId).emit('a_cambiar_teleprompter', { msg_teleprompter: data.msg_teleprompter });
+				}
+			}
+		});
+
+		socket.on('sc_answered', function (data) {
+			socket.datos.answered 		= data.valor;
+			socket.datos.respondidas++;
+			socket.datos.tiempo 		= socket.datos.tiempo + data.tiempo;
+			if (data.valor == 'correct') {
+				socket.datos.correctas++;
+			}
+
+			participante = {};
+
+			for (var i = 0; i < all_clts.length; i++) {
+				if(all_clts[i].resourceId == socket.id){
+					all_clts[i] 	= socket.datos;
+					participante 	= all_clts[i];
+				}
+			}
+			for (var i = 0; i < all_clts.length; i++) {
+				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+					socket.broadcast.to(all_clts[i].resourceId).emit('sc_answered', { resourceId: socket.id, cliente: participante });
+				}
+			}
+		});
+
+		socket.on('next_question', function (data) {
+			info_evento.preg_actual++;
+			for (var i = 0; i < all_clts.length; i++) {
+				all_clts[i].answered = 'waiting';
+				if(all_clts[i].logged && all_clts[i].resourceId != socket.resourceId){
+					socket.broadcast.to(all_clts[i].resourceId).emit('next_question');
+				}
+			}
+		});
+
+		socket.on('next_question_cliente', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				all_clts[i].answered = 'waiting';
+				if(all_clts[i].logged && all_clts[i].resourceId != socket.resourceId){
+					socket.broadcast.to(all_clts[i].resourceId).emit('next_question');
+				}
+			}
+		});
+
+		socket.on('goto_question_no', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				all_clts[i].answered = 'waiting';
+				if(all_clts[i].logged && all_clts[i].resourceId != socket.resourceId){
+					socket.broadcast.to(all_clts[i].resourceId).emit('goto_question_no', {numero: data.numero});
+				}
+			}
+		});
+
+		socket.on('goto_question_no_clt', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				all_clts[i].answered = 'waiting';
+				if(all_clts[i].logged && all_clts[i].resourceId != socket.resourceId){
+					socket.broadcast.to(all_clts[i].resourceId).emit('goto_question_no', {numero: data.numero});
+				}
+			}
+		});
+
+
+
+
+
 
 	});
 
@@ -320,8 +536,8 @@ function get_users(evento_id) {
 		connection.connect(function(err) {
 			if (err) { console.error('error connecting: ' + err.stack); return reject(err); }
 		});
-		default_female 	= 'perfil/system/avatars/female1.jpg';
-    	default_male 	= 'perfil/system/avatars/male1.jpg';
+		default_female 	= 'perfil/system/avatars/female1.png';
+		default_male 	= 'perfil/system/avatars/male1.png';
 
 		consulta = `SELECT u.id, u.nombres, u.apellidos, u.sexo, u.username, u.email, u.is_superuser, 
 							u.cell, u.edad, u.idioma_main_id, u.evento_selected_id, 
@@ -411,6 +627,51 @@ function delete_qr(qr_codigo) {
 			resolve(results);
 		});
 		connection.end();
+	});
+
+}
+
+function categorias_king_con_traducciones(evento_id) {
+	var self = this;
+	return new Promise(function(resolve, reject) {
+		datos 			= get_datos_conn();
+		var mysql 		= require('mysql');
+		var connection 	= mysql.createConnection(datos);
+
+		connection.connect(function(err) {
+			if (err) { console.error('error connecting: ' + err.stack); return reject(err); }
+		});
+
+		consulta 	= `SELECT id FROM ws_eventos where actual=true and deleted_at is null`;
+		connection.query(consulta, function (error, eventoRes) {
+			evento = eventoRes[0];
+
+			consulta 	= `SELECT * FROM ws_categorias_king where evento_id = ? and deleted_at is null`;
+			connection.query(consulta, [evento.id], function (error, results) {
+				
+				Promise.all(
+					results.map(function(row) {
+						var promise = new Promise(function(resolve,reject) {
+
+							consulta = `SELECT t.id, t.nombre, t.abrev, t.categoria_id, t.descripcion, t.idioma_id, t.traducido, i.nombre as idioma  
+										FROM ws_categorias_traduc t, ws_idiomas i
+										where i.id=t.idioma_id and t.categoria_id = ? and t.deleted_at is null`;
+							connection.query(consulta, [row.id], function (error, results) {
+								row.categorias_traducidas = results;
+								resolve(row);
+							});
+						});
+						return promise;
+					})
+				).then(function() {
+					//console.log(results);
+					resolve(results);
+				});
+
+				connection.end();
+			
+			});
+		});
 	});
 
 }
