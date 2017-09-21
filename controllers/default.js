@@ -357,6 +357,16 @@ F.on("load", function() {
 			}
 		});
 
+		socket.on('selec_opc_in_question', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('selec_opc_in_question', {opcion: data.opcion } );
+					}
+				}
+			}
+		});
+
 		socket.on('sc_reveal_answer', function (data) {
 			for (var i = 0; i < all_clts.length; i++) {
 				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
@@ -367,8 +377,10 @@ F.on("load", function() {
 
 		socket.on('sc_show_logo_entidad_partici', function (data) {
 			for (var i = 0; i < all_clts.length; i++) {
-				if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-					socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_logo_entidad_partici', {valor: data.valor});
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('sc_reveal_answer' );
+					}
 				}
 			}
 		});
