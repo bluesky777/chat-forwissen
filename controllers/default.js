@@ -287,7 +287,15 @@ F.on("load", function() {
 
 		socket.on('correspondencia', function (data) {
 			mensaje 	= { from: socket.datos, texto: data.mensaje };
-			self.io.sockets.emit('correspondencia', { mensaje: mensaje });
+			if (data.to) {
+				for(var i=0; i < all_clts.length; i++){
+					if (all_clts[i].resourceId == data.to) {
+						socket.broadcast.to(data.to).emit('correspondencia', { mensaje: mensaje });
+					}
+				}
+			}else{
+				self.io.sockets.emit('correspondencia', { mensaje: mensaje });
+			}
 		});
 
 		socket.on('cerrar_sesion_a', function (data) {
