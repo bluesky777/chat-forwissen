@@ -462,7 +462,7 @@ F.on("load", function() {
 			}
 			for (var i = 0; i < all_clts.length; i++) {
 				if (all_clts[i].user_data.roles) {
-					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla' || all_clts[i].user_data.roles[0].name == 'Admin'){
 						socket.broadcast.to(all_clts[i].resourceId).emit('sc_answered', { resourceId: socket.id, cliente: participante });
 					}
 				}
