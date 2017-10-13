@@ -25,11 +25,8 @@ F.on("load", function() {
 
 
 
-	self.io.on('connection',function(socket){
+	self.io.on('connection', (socket)=> {
 		console.log('New connection: '+socket.id);
-
-
-		socket.join('principal');
 
 
 		count_clients++;
@@ -52,7 +49,7 @@ F.on("load", function() {
 		socket.broadcast.emit('conectado:alguien', {clt: socket.datos} );
 
 
-		socket.on('reconocer:punto:registered',function(data){
+		socket.on('reconocer:punto:registered', (data)=>{
 			if (data.nombre_punto) {
 				socket.datos.nombre_punto = data.nombre_punto;
 			}
@@ -70,7 +67,11 @@ F.on("load", function() {
 			self.io.sockets.emit('reconocido:punto:registered', datos );
 		});
 
-		socket.on('guardar:mi_qr:resourceId',function(data){
+		socket.on('error', (error)=>{
+			console.log('*** Error: '+error);
+		});
+
+		socket.on('guardar:mi_qr:resourceId', (data)=>{
 			if ( data.qr) {
 				parametro 		= { "resourceId": socket.datos.resourceId };
 				parametro  		= JSON.stringify(parametro);
@@ -80,7 +81,7 @@ F.on("load", function() {
 			}
 		});
 
-		socket.on('loguear',function(data){
+		socket.on('loguear', (data)=> {
 			if (data.usuario.eventos) {
 				delete data.usuario.eventos;
 			}
@@ -95,6 +96,22 @@ F.on("load", function() {
 			datos.nombre_punto		= data.nombre_punto?data.nombre_punto:socket.datos.nombre_punto;
 			datos.user_data 		= data.usuario;
 			socket.datos 			= datos;
+
+			if(socket.room)
+				socket.leave(socket.room);
+
+			if (data.usuario.evento_selected_id) {
+				socket.room = 'etapa' + data.usuario.evento_selected_id;
+			}else{
+				socket.room = 'etapa' + data.usuario.evento_actual.id;
+			}
+			socket.join(socket.room);
+			
+			for (var propiedad in self.io.in(socket.room).sockets) {
+				//console.log(self.io.in(socket.room).sockets[propiedad].datos);
+				//self.io.in(socket.room).sockets[propiedad].emit('Mirameeeeeee', self.io.in(socket.room).sockets[propiedad].datos)
+			}
+			
 
 
 			if (socket.datos.user_data.inscripciones.length > 0) {
@@ -195,6 +212,16 @@ F.on("load", function() {
 
 		socket.on('empezar_examen_cliente', function(data){
 			socket.broadcast.to(data.resourceId).emit('empezar_examen'); 
+		});
+
+		socket.on('set_my_examen_id', (data)=> {
+			socket.datos.examen_actual_id = data.examen_actual_id;
+
+			for (var i = 0; i < all_clts.length; i++) {
+				if (all_clts[i].resourceId == socket.id) {
+					all_clts.splice(i, 1, socket.datos);
+				}
+			}
 		});
 
 		socket.on('liberar_hasta_pregunta', function(data){
@@ -347,6 +374,16 @@ F.on("load", function() {
 			socket.broadcast.emit('sc_show_participantes');
 		});
 
+		socket.on('sc_mostrar_resultados_actuales', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('sc_mostrar_resultados_actuales', { examenes_cargados: data.examenes_cargados });
+					}
+				}
+			}
+		});
+
 		socket.on('sc_show_barras', function (data) {
 			for (var i = 0; i < all_clts.length; i++) {
 				if (all_clts[i].user_data.roles) {
@@ -391,7 +428,7 @@ F.on("load", function() {
 			for (var i = 0; i < all_clts.length; i++) {
 				if (all_clts[i].user_data.roles) {
 					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-						socket.broadcast.to(all_clts[i].resourceId).emit('sc_reveal_answer' );
+						socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_logo_entidad_partici', {valor: data.valor} );
 					}
 				}
 			}
@@ -416,6 +453,18 @@ F.on("load", function() {
 				}
 			}
 		});
+
+
+		socket.on('sc_mostrar_resultados_actuales', function (data) {
+			for (var i = 0; i < all_clts.length; i++) {
+				if (all_clts[i].user_data.roles) {
+					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
+						socket.broadcast.to(all_clts[i].resourceId).emit('sc_mostrar_resultados_actuales', {examenes_cargados: data.examenes_cargados});
+					}
+				}
+			}
+		});
+
 
 		socket.on('establecer_fondo', function (data) {
 			info_evento.img_name 		= data.img_name;
