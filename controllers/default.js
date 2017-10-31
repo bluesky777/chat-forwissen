@@ -397,8 +397,13 @@ F.on("load", function() {
 		socket.on('sc_show_question', function (data) {
 			for (var i = 0; i < all_clts.length; i++) {
 				if (all_clts[i].user_data.roles) {
-					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-						socket.broadcast.to(all_clts[i].resourceId).emit('sc_show_question', {pregunta: data.pregunta, no_question: data.no_question } );
+					role = all_clts[i].user_data.roles[0].name;
+					if(role == 'Pantalla' || role == 'Presentador' || role == 'Admin'){
+						if(socket.id == all_clts[i].resourceId){
+							socket.emit('sc_show_question', {pregunta: data.pregunta, no_question: data.no_question } );
+						}else{
+							socket.to(all_clts[i].resourceId).emit('sc_show_question', {pregunta: data.pregunta, no_question: data.no_question } );
+						}
 					}
 				}
 			}
@@ -407,8 +412,9 @@ F.on("load", function() {
 		socket.on('selec_opc_in_question', function (data) {
 			for (var i = 0; i < all_clts.length; i++) {
 				if (all_clts[i].user_data.roles) {
-					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-						socket.broadcast.to(all_clts[i].resourceId).emit('selec_opc_in_question', {opcion: data.opcion } );
+					role = all_clts[i].user_data.roles[0].name;
+					if(role == 'Pantalla' || role == 'Presentador' || role == 'Admin'){
+						socket.to(all_clts[i].resourceId).emit('selec_opc_in_question', {opcion: data.opcion } );
 					}
 				}
 			}
@@ -417,8 +423,13 @@ F.on("load", function() {
 		socket.on('sc_reveal_answer', function (data) {
 			for (var i = 0; i < all_clts.length; i++) {
 				if (all_clts[i].user_data.roles) {
-					if(all_clts[i].user_data.roles[0].name == 'Pantalla'){
-						socket.broadcast.to(all_clts[i].resourceId).emit('sc_reveal_answer');
+					role = all_clts[i].user_data.roles[0].name;
+					if(role == 'Pantalla' || role == 'Presentador' || role == 'Admin'){
+						if(socket.id == all_clts[i].resourceId){
+							socket.emit('sc_reveal_answer');
+						}else{
+							socket.broadcast.to(all_clts[i].resourceId).emit('sc_reveal_answer');
+						}
 					}
 				}
 			}
