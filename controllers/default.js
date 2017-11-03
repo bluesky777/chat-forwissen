@@ -19,7 +19,8 @@ F.on("load", function() {
 	var info_evento 	= {
 			examen_iniciado: 		false, 
 			preg_actual: 			0,
-			free_till_question: 	-1
+			free_till_question: 	-1,
+			puestos_ordenados: 		true
 		};
 
 
@@ -207,6 +208,13 @@ F.on("load", function() {
 		socket.on('empezar_examen', function(data){
 			info_evento.examen_iniciado 	= true;
 			info_evento.preg_actual 		= 1;
+
+			if(data){
+				if(data.puestos_ordenados){
+					info_evento.puestos_ordenados 	= data.puestos_ordenados;
+				}
+			}
+			
 			socket.broadcast.emit('empezar_examen');
 		});
 
@@ -228,6 +236,16 @@ F.on("load", function() {
 			info_evento.free_till_question 	= data.numero;
 			info_evento.preg_actual 		= data.numero;
 			socket.broadcast.emit('set_free_till_question', { free_till_question: data.numero }); 
+		});
+
+		socket.on('hasta_que_pregunta_esta_free', function(data){
+			socket.emit('set_free_till_question', { free_till_question: info_evento.free_till_question }); 
+		});
+
+		socket.on('set_puestos_ordenados', function(data){
+			console.log('set_puestos_ordenados');
+			info_evento.puestos_ordenados 		= data.puestos_ordenados;
+			socket.broadcast.emit('set_puestos_ordenados', { puestos_ordenados: data.puestos_ordenados }); 
 		});
 
 
